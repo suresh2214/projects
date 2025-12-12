@@ -1,0 +1,114 @@
+# ------------------------------------------------------------
+# Project: Online Retail Sales Visualization
+# Tools: RStudio, ggplot2, dplyr
+# Purpose:
+#   - Load real sales data from CSV
+#   - Clean and summarize
+#   - Visualize trends, top products, and sales by country
+# ------------------------------------------------------------
+
+# Load libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# ------------------------------------------------------------
+# 1. Load Dataset
+# ------------------------------------------------------------
+
+# Replace with your CSV file path
+file_path <- "online_retail.csv"
+
+# Read the CSV file
+sales <- read.csv(file_path, encoding = "latin1", stringsAsFactors = FALSE)
+
+# Preview data
+head(sales)
+
+# ------------------------------------------------------------
+# 2. Data Cleaning
+# ------------------------------------------------------------
+
+# Remove rows with missing InvoiceNo or CustomerID
+sales <- sales %>% filter(!is.na(InvoiceNo), !is.na(CustomerID))
+
+# Remove cancelled orders (InvoiceNo starts with "C")
+sales <- sales %>% filter(!grepl("^C", InvoiceNo))
+
+# Keep only positive Quantity and UnitPrice
+sales <- sales %>% filter(Quantity > 0, UnitPrice > 0)
+
+# Create TotalAmount column
+sales <- sales %>% mutate(TotalAmount = Quantity * UnitPrice)
+
+# Convert InvoiceDate to date type
+sales$InvoiceDate <- as.POSIXct(sales$InvoiceDate, format = "%m/%d/%Y %H:%M")
+
+# Extract Year-Month for monthly trend
+sales$YearMonth <- format(sales$InvoiceDate, "%Y-%m")
+
+# ------------------------------------------------------------
+# 3. Overall Metrics
+# ------------------------------------------------------------
+
+# Total revenue
+total_revenue <- sum(sales$TotalAmount)
+cat("Total Revenue: £", round(total_revenue, 2), "\n")
+
+# Top 10 best-selling products by quantity
+top_products <- sales %>%
+  group_by(Description) %>%
+  summarise(TotalQuantity = sum(Quantity)) %>%
+  arrange(desc(TotalQuantity)) %>%
+  head(10)
+
+# Top 10 countries by revenue
+top_countries <- sales %>%
+  group_by(Country) %>%
+  summarise(TotalRevenue = sum(TotalAmount)) %>%
+  arrange(desc(TotalRevenue)) %>%
+  head(10)
+
+# ------------------------------------------------------------
+# 4. Visualizations
+# ------------------------------------------------------------
+
+# 4.1 Monthly Revenue Trend
+monthly_sales <- sales %>%
+  group_by(YearMonth) %>%
+  summarise(MonthlyRevenue = sum(TotalAmount))
+
+ggplot(monthly_sales, aes(x = YearMonth, y = MonthlyRevenue, group = 1)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red", size = 2) +
+  labs(title = "Monthly Revenue Trend",
+       x = "Year-Month",
+       y = "Revenue (£)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 4.2 Top 10 Products by Quantity Sold
+ggplot(top_products, aes(x = reorder(Description, TotalQuantity), y = TotalQuantity)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  labs(title = "Top 10 Best-Selling Products",
+       x = "Product",
+       y = "Quantity Sold") +
+  theme_minimal()
+
+# 4.3 Top 10 Countries by Revenue
+ggplot(top_countries, aes(x = reorder(Country, TotalRevenue), y = TotalRevenue)) +
+  geom_bar(stat = "identity", fill = "lightgreen") +
+  coord_flip() +
+  labs(title = "Top 10 Countries by Revenue",
+       x = "Country",
+       y = "Revenue (£)") +
+  theme_minimal()
+
+# 4.4 Scatter Plot: Quantity vs TotalAmount
+ggplot(sales, aes(x = Quantity, y = TotalAmount, color = Country)) +
+  geom_point(alpha = 0.6, size = 2) +
+  labs(title = "Quantity vs Total Amount by Country",
+       x = "Quantity",
+       y = "Total Amount (£)") +
+  theme_light()
