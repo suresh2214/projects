@@ -1,0 +1,181 @@
+# ---------------------------------------------
+# Partner Appointment App (Simple Version)
+# ---------------------------------------------
+# This is a basic Flask application that allows:
+# - Listing partners
+# - Booking appointments
+# - Adding market research notes
+# - Adding branding content
+# ---------------------------------------------
+
+from flask import Flask, render_template, request, redirect, flash
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
+app = Flask(__name__)
+app.config["SECRET_KEY"] = "sample-key"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///partners.db"
+
+db = SQLAlchemy(app)
+
+# ============================
+# Database Models
+# ============================
+
+class Partner(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120))
+    category = db.Column(db.String(120))
+    rate = db.Column(db.Integer)
+    bio = db.Column(db.Text)
+    language = db.Column(db.String(50))
+
+
+class Appointment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    partner_id = db.Column(db.Integer, db.ForeignKey("partner.id"))
+    customer_name = db.Column(db.String(120))
+    start_time = db.Column(db.DateTime)
+    duration = db.Column(db.Integer)
+    notes = db.Column(db.Text)
+    partner = db.relationship("Partner")
+
+
+class Research(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    region = db.Column(db.String(120))
+    audience = db.Column(db.String(200))
+    insight = db.Column(db.Text)
+    created_on = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Branding(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(120))
+    text = db.Column(db.Text)
+    use_for = db.Column(db.String(120))
+
+
+# ============================
+# Seed initial sample data
+# ============================
+
+def add_sample_data():
+    if Partner.query.first():
+        return
+    
+    partners = [
+        Partner(name="Aiko Tanaka", category="Conversation Partner",
+                rate=25, bio="Friendly personality, good listener.", language="Japanese"),
+        Partner(name="Hiroshi Yamauchi", category="City Guide",
+                rate=40, bio="Knows Tokyo inside-out.", language="Japanese"),
+        Partner(name="Mika S.", category="Event Companion",
+                rate=35, bio="Calm and supportive for events.", language="English")
+    ]
+
+    for p in partners:
+        db.session.add(p)
+
+    banner = Branding(
+        title="Main Banner",
+        text="Find your perfect partner for quality time.",
+        use_for="homepage"
+    )
+    db.session.add(banner)
+
+    sample_research = Research(
+        region="Delhi NCR",
+        audience="Young Adults (20-35)",
+        insight="Users prefer verified and private partner experiences."
+    )
+    db.session.add(sample_research)
+
+    db.session.commit()
+
+
+# ============================
+# Routes
+# ============================
+
+@app.route("/")
+def home():
+    partner_list = Partner.query.all()
+    banner = Branding.query.filter_by(use_for="homepage").first()
+    return render_template("index.html", partners=partner_list, banner=banner)
+
+
+@app.route("/partner/<int:pid>", methods=["GET", "POST"])
+def partner_page(pid):
+    partner = Partner.query.get_or_404(pid)
+
+    if request.method == "POST":
+        name = request.form.get("customer_name")
+        start = request.form.get("start_time")
+        duration = request.form.get("duration")
+        notes = request.form.get("notes")
+
+        new_appointment = Appointment(
+            partner_id=pid,
+            customer_name=name,
+            start_time=datetime.strptime(start, "%Y-%m-%d %H:%M"),
+            duration=int(duration),
+            notes=notes
+        )
+
+        db.session.add(new_appointment)
+        db.session.commit()
+
+        flash("Appointment booked successfully!")
+        return redirect(f"/partner/{pid}")
+
+    return render_template("partner_detail.html", partner=partner)
+
+
+@app.route("/research", methods=["GET", "POST"])
+def research_page():
+    if request.method == "POST":
+        region = request.form.get("region")
+        audience = request.form.get("audience")
+        insight = request.form.get("insight")
+
+        entry = Research(region=region, audience=audience, insight=insight)
+        db.session.add(entry)
+        db.session.commit()
+
+        flash("Research note added.")
+        return redirect("/research")
+
+    items = Research.query.all()
+    return render_template("research.html", items=items)
+
+
+@app.route("/branding", methods=["GET", "POST"])
+def branding_page():
+    if request.method == "POST":
+        title = request.form.get("title")
+        text = request.form.get("text")
+        use_for = request.form.get("use_for")
+
+        item = Branding(title=title, text=text, use_for=use_for)
+        db.session.add(item)
+        db.session.commit()
+
+        flash("Branding item saved.")
+        return redirect("/branding")
+
+    assets = Branding.query.all()
+    return render_template("branding.html", assets=assets)
+
+
+# ============================
+# App Startup
+# ============================
+
+@app.before_first_request
+def setup():
+    db.create_all()
+    add_sample_data()
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
