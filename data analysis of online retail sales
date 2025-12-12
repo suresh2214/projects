@@ -1,0 +1,129 @@
+# ------------------------------------------------------------
+# Online Retail Sales – Data Analysis Project
+# Technologies: Python, Pandas, Jupyter Notebook
+#
+# Description:
+#   This script performs basic data cleaning and exploratory
+#   analysis on an online retail sales dataset. It identifies
+#   popular products, revenue trends, and country-wise sales.
+# ------------------------------------------------------------
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Make sure all columns are visible during preview
+pd.set_option("display.max_columns", None)
+
+# ------------------------------------------------------------
+# 1. Load the dataset
+# ------------------------------------------------------------
+
+# Update the file path if your CSV is stored elsewhere
+file_path = "online_retail.csv"
+
+try:
+    sales = pd.read_csv(file_path, encoding="latin1")
+    print("Dataset loaded successfully.\n")
+except Exception as e:
+    print("Error loading file:", e)
+
+print("Initial sample:")
+print(sales.head())
+
+# ------------------------------------------------------------
+# 2. Data Cleaning
+# ------------------------------------------------------------
+
+# Remove rows where essential fields are missing
+sales = sales.dropna(subset=["InvoiceNo", "CustomerID"])
+
+# Exclude cancelled transactions (InvoiceNo starting with 'C')
+sales = sales[~sales["InvoiceNo"].astype(str).str.startswith("C")]
+
+# Keep only valid quantity and price values
+sales = sales[(sales["Quantity"] > 0) & (sales["UnitPrice"] > 0)]
+
+# Calculate the total purchase amount
+sales["TotalAmount"] = sales["Quantity"] * sales["UnitPrice"]
+
+print("\nCleaned dataset sample:")
+print(sales.head())
+
+# Convert InvoiceDate into a datetime object
+sales["InvoiceDate"] = pd.to_datetime(sales["InvoiceDate"])
+
+# ------------------------------------------------------------
+# 3. Key Metrics & Insights
+# ------------------------------------------------------------
+
+# Overall revenue
+total_revenue = sales["TotalAmount"].sum()
+print(f"\nTotal Revenue: £{total_revenue:,.2f}")
+
+# Products with the highest total quantity sold
+top_items = (
+    sales.groupby("Description")["Quantity"]
+    .sum()
+    .sort_values(ascending=False)
+    .head(10)
+)
+
+print("\nTop 10 Most Purchased Products:")
+print(top_items)
+
+# Revenue by country
+country_revenue = (
+    sales.groupby("Country")["TotalAmount"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+print("\nTop Revenue-Generating Countries:")
+print(country_revenue.head())
+
+# ------------------------------------------------------------
+# 4. Monthly Revenue Trend
+# ------------------------------------------------------------
+
+sales["YearMonth"] = sales["InvoiceDate"].dt.to_period("M")
+
+monthly_revenue = (
+    sales.groupby("YearMonth")["TotalAmount"]
+    .sum()
+    .reset_index()
+)
+
+plt.figure(figsize=(10, 5))
+plt.plot(monthly_revenue["YearMonth"].astype(str), monthly_revenue["TotalAmount"])
+plt.title("Monthly Revenue Trend")
+plt.xlabel("Month")
+plt.ylabel("Revenue (£)")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# ------------------------------------------------------------
+# 5. Top 10 Best-Selling Products (Visualization)
+# ------------------------------------------------------------
+
+plt.figure(figsize=(12, 6))
+top_items.plot(kind="bar")
+plt.title("Top 10 Products by Quantity Sold")
+plt.xlabel("Product")
+plt.ylabel("Units Sold")
+plt.tight_layout()
+plt.show()
+
+# ------------------------------------------------------------
+# 6. Top Countries by Revenue (Visualization)
+# ------------------------------------------------------------
+
+top_countries = country_revenue.head(10)
+
+plt.figure(figsize=(12, 6))
+top_countries.plot(kind="bar")
+plt.title("Top 10 Countries by Revenue")
+plt.xlabel("Country")
+plt.ylabel("Revenue (£)")
+plt.tight_layout()
+plt.show()
